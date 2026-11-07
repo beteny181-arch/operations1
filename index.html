@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <!-- مكتبات Firebase (متوافقة) -->
+    <!-- مكتبات Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
 
@@ -41,14 +41,14 @@
 </head>
 <body class="p-4 md:p-8 min-h-screen flex flex-col">
 
-    <header class="flex items-center justify-between mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+    <header class="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
         <div class="flex items-center gap-4">
             <div class="bg-primary text-white w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-lg">
                 <i class="fa-solid fa-truck-excavator"></i>
             </div>
             <div>
-                <h1 class="text-3xl font-black text-dark tracking-tight">سجل تشغيل المعدات</h1>
-                <p class="text-sm font-bold text-grayText mt-1">نظام سحابي (متصل بالإنترنت) - الإخلاص</p>
+                <h1 class="text-2xl md:text-3xl font-black text-dark tracking-tight">سجل تشغيل المعدات</h1>
+                <p class="text-sm font-bold text-grayText mt-1">نظام سحابي - شركة الرواسخ / الإخلاص</p>
             </div>
         </div>
         <div id="sync-status" class="bg-orange-100 text-orange-600 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2">
@@ -71,15 +71,18 @@
                         <input type="date" id="date" class="input-field" required>
                     </div>
 
+                    <!-- المشروع مع زر الإضافة اليدوي اللي بيشتغل على الموبايل -->
                     <div>
                         <label class="block text-sm font-bold text-grayText mb-2">المشروع / العميل</label>
                         <div class="flex gap-2 h-12">
-                            <input type="text" id="project" list="project-options" class="input-field h-full" placeholder="ابحث عن مشروع أو اكتب اسم جديد..." autocomplete="off" required>
-                            <datalist id="project-options"></datalist>
+                            <select id="project" class="input-field h-full" required>
+                                <option value="" disabled selected>اختر المشروع...</option>
+                            </select>
+                            <button type="button" onclick="addNewProject()" class="add-btn" title="إضافة مشروع جديد"><i class="fa-solid fa-plus"></i></button>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-bold text-grayText mb-2">تصنيف المعدة</label>
                             <select id="category" class="input-field h-12" required onchange="updateEquipmentList()">
@@ -91,11 +94,14 @@
                             </select>
                         </div>
                         
+                        <!-- المعدة مع زر الإضافة اليدوي -->
                         <div>
                             <label class="block text-sm font-bold text-grayText mb-2">اسم المعدة</label>
                             <div class="flex gap-2 h-12">
-                                <input type="text" id="equipment" list="equipment-options" class="input-field h-full" placeholder="ابحث أو ضف معدة..." autocomplete="off" required>
-                                <datalist id="equipment-options"></datalist>
+                                <select id="equipment" class="input-field h-full" required>
+                                    <option value="" disabled selected>اختر التصنيف أولاً...</option>
+                                </select>
+                                <button type="button" onclick="addNewEquipment()" class="add-btn" title="إضافة معدة جديدة"><i class="fa-solid fa-plus"></i></button>
                             </div>
                         </div>
                     </div>
@@ -179,7 +185,7 @@
     </div>
 
     <script>
-        // ================= 1. إعدادات قاعدة بيانات Firebase =================
+        // ================= 1. إعدادات Firebase =================
         const firebaseConfig = {
             apiKey: "AIzaSyBww4fbfJgH70YldNV_4uJBWcHor0R-n-Q",
             authDomain: "alekhlas-erp.firebaseapp.com",
@@ -213,20 +219,17 @@
         let equipmentDB = {};
         let records = [];
 
-        // ================= 3. استقبال البيانات اللحظية (Real-time Sync) =================
-        
-        // استماع للمشاريع
+        // ================= 3. استقبال البيانات من السيرفر =================
         database.ref('projects').on('value', (snapshot) => {
             if (snapshot.exists()) {
                 projects = snapshot.val();
             } else {
                 projects = defaultProjects;
-                database.ref('projects').set(projects); // رفع الأساسيات لأول مرة
+                database.ref('projects').set(projects);
             }
             renderProjectsDropdown();
         });
 
-        // استماع للمعدات
         database.ref('equipment').on('value', (snapshot) => {
             if (snapshot.exists()) {
                 equipmentDB = snapshot.val();
@@ -237,210 +240,33 @@
             if(document.getElementById('category').value) updateEquipmentList();
         });
 
-        // استماع للحركات (أهم جزء)
         database.ref('records').on('value', (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                // تحويل البيانات من كائن إلى مصفوفة
                 records = Object.keys(data).map(key => data[key]);
             } else {
                 records = [];
             }
             renderTable();
             
-            // تحديث حالة الاتصال في الشاشة
             const statusDiv = document.getElementById('sync-status');
             statusDiv.className = 'bg-emerald-100 text-emerald-600 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2';
             statusDiv.innerHTML = '<i class="fa-solid fa-check-circle"></i> متصل ومحدث';
         });
 
-        // ================= 4. تهيئة الصفحة =================
-        window.onload = function() {
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('date').value = today;
-            
-            const dateObj = new Date();
-            const firstDay = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).toISOString().split('T')[0];
-            document.getElementById('filter-from').value = firstDay;
-            document.getElementById('filter-to').value = today;
-        };
-
-        function renderProjectsDropdown() {
-            const dataList = document.getElementById('project-options');
-            dataList.innerHTML = '';
-            projects.forEach(p => { 
-                const option = document.createElement('option');
-                option.value = p;
-                dataList.appendChild(option);
-            });
-        }
-
-        function updateEquipmentList() {
-            const category = document.getElementById('category').value;
-            const dataList = document.getElementById('equipment-options');
-            const equipInput = document.getElementById('equipment');
-            
-            dataList.innerHTML = '';
-            equipInput.value = ''; 
-            
-            if(equipmentDB[category]) {
-                equipmentDB[category].forEach(eq => { 
-                    const option = document.createElement('option');
-                    option.value = eq;
-                    dataList.appendChild(option);
-                });
-            }
-        }
-
-        // ================= 5. حفظ البيانات سحابياً =================
-        document.getElementById('record-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const projectName = document.getElementById('project').value.trim();
-            const category = document.getElementById('category').value;
-            const equipmentName = document.getElementById('equipment').value.trim();
-
-            const statusDiv = document.getElementById('sync-status');
-            statusDiv.className = 'bg-blue-100 text-blue-600 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2';
-            statusDiv.innerHTML = '<i class="fa-solid fa-cloud-arrow-up fa-fade"></i> جاري الحفظ...';
-
-            // 1. تحديث المشاريع لو في مشروع جديد
-            if(projectName && !projects.includes(projectName)) {
-                projects.push(projectName);
-                database.ref('projects').set(projects);
-            }
-
-            // 2. تحديث المعدات لو في معدة جديدة
-            if(category && equipmentName && (!equipmentDB[category] || !equipmentDB[category].includes(equipmentName))) {
-                if(!equipmentDB[category]) equipmentDB[category] = [];
-                equipmentDB[category].push(equipmentName);
-                database.ref('equipment').set(equipmentDB);
-            }
-
-            // 3. حفظ الحركة برقم فريد
-            const recordId = 'REC_' + Date.now();
-            const newRecord = {
-                id: recordId,
-                date: document.getElementById('date').value,
-                project: projectName,
-                category: category,
-                equipment: equipmentName,
-                quantity: parseFloat(document.getElementById('quantity').value) || 0,
-                revenue: parseFloat(document.getElementById('revenue').value) || 0,
-                expense: parseFloat(document.getElementById('expense').value) || 0
-            };
-
-            // الرفع للقاعدة
-            database.ref('records/' + recordId).set(newRecord).then(() => {
-                document.getElementById('quantity').value = '';
-                document.getElementById('revenue').value = '';
-                document.getElementById('expense').value = '';
-                document.getElementById('quantity').focus();
+        // ================= 4. الإضافة اليدوية السليمة (تدعم كل الموبايلات) =================
+        function addNewProject() {
+            let newProject = prompt("أدخل اسم المشروع أو العميل الجديد:");
+            if (newProject && newProject.trim() !== '') {
+                const cleanName = newProject.trim();
                 
-                Swal.fire({title: 'تم الحفظ!', text: 'تم تسجيل الحركة في السيرفر بنجاح.', icon: 'success', confirmButtonColor: '#4318FF', timer: 1500, showConfirmButton: false});
-            }).catch((error) => {
-                Swal.fire('خطأ!', 'حدث خطأ في الاتصال بالسيرفر.', 'error');
-            });
-        });
-
-        // ================= 6. رسم الجدول (تلقائياً عند أي تغيير) =================
-        function renderTable() {
-            const fromDate = document.getElementById('filter-from').value;
-            const toDate = document.getElementById('filter-to').value;
-            const tbody = document.getElementById('records-tbody');
-            tbody.innerHTML = '';
-
-            let filteredRecords = records;
-            if(fromDate && toDate) filteredRecords = records.filter(r => r.date >= fromDate && r.date <= toDate);
-            
-            filteredRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
-            document.getElementById('record-count').innerText = `${filteredRecords.length} حركة`;
-
-            let totalQty = 0, totalRev = 0, totalExp = 0, totalNet = 0;
-
-            filteredRecords.forEach(r => {
-                let net = r.revenue - r.expense;
-                totalQty += r.quantity; totalRev += r.revenue; totalExp += r.expense; totalNet += net;
-                let netColor = net >= 0 ? 'text-emerald-500' : 'text-red-500';
-
-                tbody.innerHTML += `
-                    <tr class="hover:bg-slate-50 transition border-b border-gray-100">
-                        <td class="p-4 font-bold text-sm">${r.date}</td>
-                        <td class="p-4 font-bold text-primary truncate max-w-[150px]" title="${r.project}">${r.project}</td>
-                        <td class="p-4 text-sm text-grayText">${r.category}</td>
-                        <td class="p-4 font-bold">${r.equipment}</td>
-                        <td class="p-4">${r.quantity.toLocaleString('en-US')}</td>
-                        <td class="p-4 text-blue-600 font-bold">${r.revenue.toLocaleString('en-US')}</td>
-                        <td class="p-4 text-red-500 font-bold">${r.expense.toLocaleString('en-US')}</td>
-                        <td class="p-4 font-black ${netColor}">${net.toLocaleString('en-US')}</td>
-                        <td class="p-4 text-center">
-                            <button onclick="deleteRecord('${r.id}')" class="text-red-400 hover:text-red-600 transition cursor-pointer" title="حذف الحركة سحابياً"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
-
-            let totalNetColor = totalNet >= 0 ? 'text-emerald-400' : 'text-red-400';
-            document.getElementById('records-tfoot').innerHTML = `
-                <td colspan="4" class="p-4 text-lg font-black text-left">إجمالي الفترة:</td>
-                <td class="p-4 font-black text-lg">${totalQty.toLocaleString('en-US')}</td>
-                <td class="p-4 font-black text-lg text-blue-300">${totalRev.toLocaleString('en-US')}</td>
-                <td class="p-4 font-black text-lg text-red-300">${totalExp.toLocaleString('en-US')}</td>
-                <td class="p-4 font-black text-lg ${totalNetColor}">${totalNet.toLocaleString('en-US')}</td>
-                <td></td>
-            `;
-        }
-
-        function deleteRecord(id) {
-            Swal.fire({
-                title: 'حذف الحركة؟',
-                text: "سيتم حذفها من السيرفر ولن تظهر لأي مستخدم آخر!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#ef4444',
-                cancelButtonColor: '#A3AED0',
-                confirmButtonText: 'نعم، احذف',
-                cancelButtonText: 'إلغاء'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    database.ref('records/' + id).remove();
-                    Swal.fire({title: 'تم الحذف!', icon: 'success', timer: 1000, showConfirmButton: false});
+                if(!projects.includes(cleanName)) {
+                    projects.push(cleanName);
+                    database.ref('projects').set(projects); // الحفظ في السيرفر فوراً
+                    renderProjectsDropdown(); 
                 }
-            });
-        }
-
-        function exportToExcel() {
-            const fromDate = document.getElementById('filter-from').value;
-            const toDate = document.getElementById('filter-to').value;
-            
-            let filteredRecords = records;
-            if(fromDate && toDate) filteredRecords = records.filter(r => r.date >= fromDate && r.date <= toDate);
-            if(filteredRecords.length === 0) {
-                Swal.fire('تنبيه', 'لا يوجد بيانات لتصديرها.', 'info');
-                return;
+                document.getElementById('project').value = cleanName;
             }
-
-            const excelData = filteredRecords.map(r => ({
-                "التاريخ": r.date, "المشروع": r.project, "التصنيف": r.category, "اسم المعدة": r.equipment,
-                "الكمية (ساعات)": r.quantity, "الإيراد": r.revenue, "المصروف": r.expense, "صافي الربح": r.revenue - r.expense
-            }));
-
-            const totalQty = filteredRecords.reduce((sum, r) => sum + r.quantity, 0);
-            const totalRev = filteredRecords.reduce((sum, r) => sum + r.revenue, 0);
-            const totalExp = filteredRecords.reduce((sum, r) => sum + r.expense, 0);
-            
-            excelData.push({
-                "التاريخ": "الإجمالي", "المشروع": "", "التصنيف": "", "اسم المعدة": "",
-                "الكمية (ساعات)": totalQty, "الإيراد": totalRev, "المصروف": totalExp, "صافي الربح": totalRev - totalExp
-            });
-
-            const ws = XLSX.utils.json_to_sheet(excelData);
-            if(!ws['!views']) ws['!views'] = [];
-            ws['!views'].push({rightToLeft: true});
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "سجل التشغيل");
-            XLSX.writeFile(wb, `تشغيل_المعدات_${fromDate}_الى_${toDate}.xlsx`);
         }
-    </script>
-</body>
-</html>
+
+        function addNewEquipment() {
