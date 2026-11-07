@@ -10,9 +10,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <!-- مكتبات Firebase (النسخة المستقرة) -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+    <!-- مكتبات Firebase (النسخة 8 الأسرع والأكثر استقراراً للموبايل) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
         tailwind.config = {
@@ -36,7 +36,6 @@
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #A3AED0; border-radius: 4px; }
-        #sync-status { transition: 0.3s; }
     </style>
 </head>
 <body class="p-4 md:p-8 min-h-screen flex flex-col">
@@ -51,7 +50,7 @@
                 <p class="text-sm font-bold text-grayText mt-1">نظام سحابي لحظي - شركة الإخلاص</p>
             </div>
         </div>
-        <div id="sync-status" class="bg-orange-100 text-orange-600 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2">
+        <div id="sync-status" class="bg-orange-100 text-orange-600 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all">
             <i class="fa-solid fa-spinner fa-spin"></i> جاري الاتصال بالسيرفر...
         </div>
     </header>
@@ -71,7 +70,6 @@
                         <input type="date" id="date" class="input-field" required>
                     </div>
 
-                    <!-- المشروع مع القائمة العادية المتوافقة مع الموبايل -->
                     <div>
                         <label class="block text-sm font-bold text-grayText mb-2">المشروع / العميل</label>
                         <div class="flex gap-2 h-12">
@@ -98,7 +96,7 @@
                             <label class="block text-sm font-bold text-grayText mb-2">اسم المعدة</label>
                             <div class="flex gap-2 h-12">
                                 <select id="equipment" class="input-field h-full" required>
-                                    <option value="" disabled selected>اختر التصنيف أولاً...</option>
+                                    <option value="" disabled selected>اختر التصنيف...</option>
                                 </select>
                                 <button type="button" onclick="addNewEquipment()" class="add-btn" title="إضافة معدة جديدة"><i class="fa-solid fa-plus"></i></button>
                             </div>
@@ -184,21 +182,12 @@
     </div>
 
     <script>
-        // ================= 1. إعدادات Firebase الصحيحة =================
-        const firebaseConfig = {
-            apiKey: "AIzaSyBww4fbfJgH70YldNV_4uJBWcHor0R-n-Q",
-            authDomain: "alekhlas-erp.firebaseapp.com",
-            databaseURL: "https://alekhlas-erp-default-rtdb.firebaseio.com", 
-            projectId: "alekhlas-erp",
-            storageBucket: "alekhlas-erp.firebasestorage.app",
-            messagingSenderId: "876835278012",
-            appId: "1:876835278012:web:f1c43de06b6d4b9b4cd4b9"
-        };
-        
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        // ================= المتغيرات الأساسية =================
+        let database;
+        let projects = [];
+        let equipmentDB = {};
+        let records = [];
 
-        // ================= 2. البيانات الأساسية للبداية =================
         const defaultProjects = [
             "شركة الرواسخ (التحالف كونكريت بلس)", "شركة الرواسخ (كسارة الراغب)", 
             "شركة الرواسخ (مقابر السخنة)", "شركة الرواسخ (شركة الغازي)", 
@@ -214,94 +203,9 @@
             "بلدوزرات": ["كاتر1", "كاتر2", "كوماتسو90", "بلدوزر 7", "بلدوزر 10n"]
         };
 
-        let projects = [];
-        let equipmentDB = {};
-        let records = [];
-
-        // ================= 3. سحب البيانات من السيرفر لحظياً =================
-        // سحب وتحديث قائمة المشاريع
-        database.ref('projects').on('value', (snapshot) => {
-            if (snapshot.exists()) {
-                projects = snapshot.val();
-            } else {
-                projects = defaultProjects;
-                database.ref('projects').set(projects); // رفع الأساسيات لو السيرفر فاضي
-            }
-            renderProjectsDropdown();
-        });
-
-        // سحب وتحديث قائمة المعدات
-        database.ref('equipment').on('value', (snapshot) => {
-            if (snapshot.exists()) {
-                equipmentDB = snapshot.val();
-            } else {
-                equipmentDB = defaultEquipment;
-                database.ref('equipment').set(equipmentDB);
-            }
-            if(document.getElementById('category').value) updateEquipmentList();
-        });
-
-        // سحب وتحديث حركات التشغيل (الجدول)
-        database.ref('records').on('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                records = Object.keys(data).map(key => data[key]);
-            } else {
-                records = [];
-            }
-            renderTable();
-            
-            // تغيير حالة الاتصال لـ "متصل"
-            const statusDiv = document.getElementById('sync-status');
-            statusDiv.className = 'bg-emerald-100 text-emerald-600 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2';
-            statusDiv.innerHTML = '<i class="fa-solid fa-check-circle"></i> متصل ومحدث';
-        });
-
-        // ================= 4. دوال الإضافة اليدوية (مهمة للموبايل) =================
-        function addNewProject() {
-            let newProject = prompt("أدخل اسم المشروع أو العميل الجديد:");
-            if (newProject && newProject.trim() !== '') {
-                const cleanName = newProject.trim();
-                
-                // منع التكرار وإضافة المشروع للسيرفر
-                if(!projects.includes(cleanName)) {
-                    projects.push(cleanName);
-                    database.ref('projects').set(projects); 
-                }
-                
-                // تحديث القائمة واختيار المشروع الجديد للمستخدم فوراً
-                setTimeout(() => {
-                    document.getElementById('project').value = cleanName;
-                }, 500); 
-            }
-        }
-
-        function addNewEquipment() {
-            const category = document.getElementById('category').value;
-            if(!category) {
-                alert("برجاء اختيار تصنيف المعدة أولاً (سيارات، لوادر...)");
-                return;
-            }
-
-            let newEquip = prompt(`أدخل اسم المعدة الجديدة ضمن تصنيف (${category}):`);
-            if (newEquip && newEquip.trim() !== '') {
-                const cleanName = newEquip.trim();
-                
-                if(!equipmentDB[category]) equipmentDB[category] = [];
-                
-                if(!equipmentDB[category].includes(cleanName)) {
-                    equipmentDB[category].push(cleanName);
-                    database.ref('equipment').set(equipmentDB); 
-                }
-                
-                setTimeout(() => {
-                    document.getElementById('equipment').value = cleanName;
-                }, 500);
-            }
-        }
-
-        // ================= 5. تهيئة الصفحة عند الفتح =================
-        window.onload = function() {
+        // ================= التشغيل الفوري للصفحة =================
+        document.addEventListener('DOMContentLoaded', function() {
+            // 1. تعيين التاريخ فوراً
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('date').value = today;
             
@@ -309,7 +213,102 @@
             const firstDay = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).toISOString().split('T')[0];
             document.getElementById('filter-from').value = firstDay;
             document.getElementById('filter-to').value = today;
-        };
+
+            // 2. تشغيل قاعدة البيانات
+            try {
+                const firebaseConfig = {
+                    apiKey: "AIzaSyBww4fbfJgH70YldNV_4uJBWcHor0R-n-Q",
+                    authDomain: "alekhlas-erp.firebaseapp.com",
+                    databaseURL: "https://alekhlas-erp-default-rtdb.firebaseio.com", 
+                    projectId: "alekhlas-erp",
+                    storageBucket: "alekhlas-erp.firebasestorage.app",
+                    messagingSenderId: "876835278012",
+                    appId: "1:876835278012:web:f1c43de06b6d4b9b4cd4b9"
+                };
+                
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                database = firebase.database();
+                
+                startRealtimeListeners();
+            } catch (error) {
+                console.error("Firebase Error: ", error);
+                const statusDiv = document.getElementById('sync-status');
+                statusDiv.className = 'bg-red-100 text-red-600 px-4 py-2 rounded-full font-bold text-sm';
+                statusDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> خطأ في النظام السحابي';
+            }
+        });
+
+        // ================= الاتصال بقاعدة البيانات =================
+        function startRealtimeListeners() {
+            database.ref('projects').on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    projects = snapshot.val();
+                } else {
+                    projects = defaultProjects;
+                    database.ref('projects').set(projects); 
+                }
+                renderProjectsDropdown();
+            });
+
+            database.ref('equipment').on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    equipmentDB = snapshot.val();
+                } else {
+                    equipmentDB = defaultEquipment;
+                    database.ref('equipment').set(equipmentDB);
+                }
+                if(document.getElementById('category').value) updateEquipmentList();
+            });
+
+            database.ref('records').on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    records = Object.keys(data).map(key => data[key]);
+                } else {
+                    records = [];
+                }
+                renderTable();
+                
+                const statusDiv = document.getElementById('sync-status');
+                statusDiv.className = 'bg-emerald-100 text-emerald-600 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2';
+                statusDiv.innerHTML = '<i class="fa-solid fa-check-circle"></i> متصل ومحدث';
+            });
+        }
+
+        // ================= الإضافة اليدوية =================
+        function addNewProject() {
+            let newProject = prompt("أدخل اسم المشروع أو العميل الجديد:");
+            if (newProject && newProject.trim() !== '') {
+                const cleanName = newProject.trim();
+                if(!projects.includes(cleanName)) {
+                    projects.push(cleanName);
+                    if(database) database.ref('projects').set(projects); 
+                }
+                setTimeout(() => { document.getElementById('project').value = cleanName; }, 300); 
+            }
+        }
+
+        function addNewEquipment() {
+            const category = document.getElementById('category').value;
+            if(!category) {
+                alert("برجاء اختيار تصنيف المعدة أولاً");
+                return;
+            }
+
+            let newEquip = prompt(`أدخل اسم المعدة الجديدة ضمن تصنيف (${category}):`);
+            if (newEquip && newEquip.trim() !== '') {
+                const cleanName = newEquip.trim();
+                if(!equipmentDB[category]) equipmentDB[category] = [];
+                
+                if(!equipmentDB[category].includes(cleanName)) {
+                    equipmentDB[category].push(cleanName);
+                    if(database) database.ref('equipment').set(equipmentDB); 
+                }
+                setTimeout(() => { document.getElementById('equipment').value = cleanName; }, 300);
+            }
+        }
 
         function renderProjectsDropdown() {
             const projectSelect = document.getElementById('project');
@@ -324,4 +323,144 @@
             if (currentValue && projects.includes(currentValue)) projectSelect.value = currentValue;
         }
 
-        function
+        function updateEquipmentList() {
+            const category = document.getElementById('category').value;
+            const equipSelect = document.getElementById('equipment');
+            const currentValue = equipSelect.value;
+            
+            equipSelect.innerHTML = '<option value="" disabled selected>اختر المعدة...</option>';
+            
+            if(equipmentDB[category]) {
+                equipmentDB[category].forEach(eq => { 
+                    const option = document.createElement('option');
+                    option.value = eq;
+                    option.text = eq;
+                    equipSelect.appendChild(option);
+                });
+            }
+            if (currentValue && equipmentDB[category] && equipmentDB[category].includes(currentValue)) {
+                equipSelect.value = currentValue;
+            }
+        }
+
+        // ================= الحفظ السحابي =================
+        document.getElementById('record-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if(!database) return alert("النظام غير متصل بالسيرفر!");
+            
+            const projectName = document.getElementById('project').value;
+            const category = document.getElementById('category').value;
+            const equipmentName = document.getElementById('equipment').value;
+
+            if(!projectName || !equipmentName) {
+                alert("يرجى اختيار المشروع والمعدة!");
+                return;
+            }
+
+            const statusDiv = document.getElementById('sync-status');
+            statusDiv.className = 'bg-blue-100 text-blue-600 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2';
+            statusDiv.innerHTML = '<i class="fa-solid fa-cloud-arrow-up fa-fade"></i> جاري الحفظ...';
+
+            const recordId = 'REC_' + Date.now();
+            const newRecord = {
+                id: recordId,
+                date: document.getElementById('date').value,
+                project: projectName,
+                category: category,
+                equipment: equipmentName,
+                quantity: parseFloat(document.getElementById('quantity').value) || 0,
+                revenue: parseFloat(document.getElementById('revenue').value) || 0,
+                expense: parseFloat(document.getElementById('expense').value) || 0
+            };
+
+            database.ref('records/' + recordId).set(newRecord).then(() => {
+                document.getElementById('quantity').value = '';
+                document.getElementById('revenue').value = '';
+                document.getElementById('expense').value = '';
+                
+                if(window.innerWidth > 768) {
+                    document.getElementById('quantity').focus();
+                }
+                
+                Swal.fire({title: 'تم الحفظ!', text: 'تم تسجيل الحركة بنجاح.', icon: 'success', confirmButtonColor: '#4318FF', timer: 1000, showConfirmButton: false});
+            }).catch((error) => {
+                Swal.fire('خطأ!', 'فشل الحفظ السحابي.', 'error');
+            });
+        });
+
+        // ================= رسم الجدول =================
+        function renderTable() {
+            const fromDate = document.getElementById('filter-from').value;
+            const toDate = document.getElementById('filter-to').value;
+            const tbody = document.getElementById('records-tbody');
+            tbody.innerHTML = '';
+
+            let filteredRecords = records;
+            if(fromDate && toDate) filteredRecords = records.filter(r => r.date >= fromDate && r.date <= toDate);
+            
+            filteredRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+            document.getElementById('record-count').innerText = `${filteredRecords.length} حركة`;
+
+            let totalQty = 0, totalRev = 0, totalExp = 0, totalNet = 0;
+
+            filteredRecords.forEach(r => {
+                let net = r.revenue - r.expense;
+                totalQty += r.quantity; totalRev += r.revenue; totalExp += r.expense; totalNet += net;
+                let netColor = net >= 0 ? 'text-emerald-500' : 'text-red-500';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition border-b border-gray-100">
+                        <td class="p-4 font-bold text-sm">${r.date}</td>
+                        <td class="p-4 font-bold text-primary truncate max-w-[150px]" title="${r.project}">${r.project}</td>
+                        <td class="p-4 text-sm text-grayText">${r.category}</td>
+                        <td class="p-4 font-bold">${r.equipment}</td>
+                        <td class="p-4">${r.quantity.toLocaleString('en-US')}</td>
+                        <td class="p-4 text-blue-600 font-bold">${r.revenue.toLocaleString('en-US')}</td>
+                        <td class="p-4 text-red-500 font-bold">${r.expense.toLocaleString('en-US')}</td>
+                        <td class="p-4 font-black ${netColor}">${net.toLocaleString('en-US')}</td>
+                        <td class="p-4 text-center">
+                            <button onclick="deleteRecord('${r.id}')" class="text-red-400 hover:text-red-600 transition cursor-pointer" title="حذف الحركة"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            let totalNetColor = totalNet >= 0 ? 'text-emerald-400' : 'text-red-400';
+            document.getElementById('records-tfoot').innerHTML = `
+                <td colspan="4" class="p-4 text-lg font-black text-left">إجمالي الفترة:</td>
+                <td class="p-4 font-black text-lg">${totalQty.toLocaleString('en-US')}</td>
+                <td class="p-4 font-black text-lg text-blue-300">${totalRev.toLocaleString('en-US')}</td>
+                <td class="p-4 font-black text-lg text-red-300">${totalExp.toLocaleString('en-US')}</td>
+                <td class="p-4 font-black text-lg ${totalNetColor}">${totalNet.toLocaleString('en-US')}</td>
+                <td></td>
+            `;
+        }
+
+        function deleteRecord(id) {
+            if (confirm("سيتم حذف الحركة نهائياً ولن تظهر للآخرين!")) {
+                if(database) database.ref('records/' + id).remove();
+            }
+        }
+
+        function exportToExcel() {
+            if(records.length === 0) return alert('لا يوجد بيانات لتصديرها.');
+            // (باقي كود الإكسيل كما هو)
+            const fromDate = document.getElementById('filter-from').value;
+            const toDate = document.getElementById('filter-to').value;
+            let filteredRecords = records;
+            if(fromDate && toDate) filteredRecords = records.filter(r => r.date >= fromDate && r.date <= toDate);
+            
+            const excelData = filteredRecords.map(r => ({
+                "التاريخ": r.date, "المشروع": r.project, "التصنيف": r.category, "اسم المعدة": r.equipment,
+                "الكمية (ساعات)": r.quantity, "الإيراد": r.revenue, "المصروف": r.expense, "صافي الربح": r.revenue - r.expense
+            }));
+            const ws = XLSX.utils.json_to_sheet(excelData);
+            if(!ws['!views']) ws['!views'] = [];
+            ws['!views'].push({rightToLeft: true});
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "سجل التشغيل");
+            XLSX.writeFile(wb, `تشغيل_المعدات.xlsx`);
+        }
+    </script>
+</body>
+</html>
