@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام تسجيل حركة تشغيل المعدات</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { primary: '#4318FF', secondary: '#F4F7FE', dark: '#2B3674', grayText: '#A3AED0' },
+                    fontFamily: { sans: ['Cairo', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F4F7FE; color: #2B3674; }
+        .glass-card { background: #ffffff; border-radius: 20px; box-shadow: 0px 10px 30px rgba(67, 24, 255, 0.05); border: 1px solid #e2e8f0; }
+        .input-field { width: 100%; background-color: #F4F7FE; border: 1px solid transparent; color: #2B3674; font-weight: 700; padding: 12px 16px; border-radius: 12px; outline: none; transition: 0.3s; }
+        .input-field:focus { border-color: #4318FF; background-color: #ffffff; box-shadow: 0 0 0 4px rgba(67, 24, 255, 0.1); }
+        .btn-primary { background-color: #4318FF; color: white; padding: 12px 24px; border-radius: 12px; font-weight: 800; transition: 0.3s; cursor: pointer; }
+        .btn-primary:hover { background-color: #3311cc; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(67, 24, 255, 0.3); }
+        .add-btn { background-color: #E0E5F2; color: #4318FF; padding: 0 16px; border-radius: 12px; transition: 0.3s; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;}
+        .add-btn:hover { background-color: #4318FF; color: white; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #A3AED0; border-radius: 4px; }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen flex flex-col">
+
+    <header class="flex items-center gap-4 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="bg-primary text-white w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-lg">
+            <i class="fa-solid fa-truck-excavator"></i>
+        </div>
+        <div>
+            <h1 class="text-3xl font-black text-dark tracking-tight">سجل تشغيل المعدات</h1>
+            <p class="text-sm font-bold text-grayText mt-1">إدخال البيانات اليومية - شركة الرواسخ / الإخلاص</p>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
+        
+        <!-- القسم الأول: نموذج الإدخال -->
+        <div class="lg:col-span-1">
+            <div class="glass-card p-6 sticky top-6">
+                <h2 class="text-xl font-black mb-6 flex items-center gap-2 text-primary border-b pb-4">
+                    <i class="fa-solid fa-plus-circle"></i> إضافة تشغيل جديد
+                </h2>
+                
+                <form id="record-form" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-bold text-grayText mb-2">التاريخ</label>
+                        <input type="date" id="date" class="input-field" required>
+                    </div>
+
+                    <!-- المشروع (قائمة قابلة للبحث) -->
+                    <div>
+                        <label class="block text-sm font-bold text-grayText mb-2">المشروع / العميل</label>
+                        <div class="flex gap-2 h-12">
+                            <input type="text" id="project" list="project-options" class="input-field h-full" placeholder="ابحث عن مشروع أو اكتب اسم جديد..." autocomplete="off" required>
+                            <datalist id="project-options"></datalist>
+                            <button type="button" onclick="addNewProject()" class="add-btn" title="إضافة يدوية"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-grayText mb-2">تصنيف المعدة</label>
+                            <select id="category" class="input-field h-12" required onchange="updateEquipmentList()">
+                                <option value="" disabled selected>التصنيف...</option>
+                                <option value="سيارات">سيارات</option>
+                                <option value="لوادر">لوادر</option>
+                                <option value="حفارات">حفارات</option>
+                                <option value="بلدوزرات">بلدوزرات</option>
+                            </select>
+                        </div>
+                        
+                        <!-- المعدة (قائمة قابلة للبحث) -->
+                        <div>
+                            <label class="block text-sm font-bold text-grayText mb-2">اسم المعدة</label>
+                            <div class="flex gap-2 h-12">
+                                <input type="text" id="equipment" list="equipment-options" class="input-field h-full" placeholder="ابحث أو ضف معدة..." autocomplete="off" required>
+                                <datalist id="equipment-options"></datalist>
+                                <button type="button" onclick="addNewEquipment()" class="add-btn" title="إضافة يدوية"><i class="fa-solid fa-plus"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-grayText mb-2">الكمية (ساعات)</label>
+                            <input type="number" step="0.01" id="quantity" class="input-field" placeholder="0" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-grayText mb-2">الإيراد (ج)</label>
+                            <input type="number" step="0.01" id="revenue" class="input-field" placeholder="0" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-grayText mb-2">المصروف (ج)</label>
+                            <input type="number" step="0.01" id="expense" class="input-field" placeholder="0" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary w-full mt-4 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-save"></i> حفظ البيانات
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- القسم الثاني: البيانات والفلتر -->
+        <div class="lg:col-span-2 flex flex-col gap-6">
+            <div class="glass-card p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-lg"><i class="fa-solid fa-filter"></i></div>
+                    <div>
+                        <h3 class="font-black text-dark">فلتر التاريخ</h3>
+                        <p class="text-xs font-bold text-grayText">حدد فترة لعرض أو تحميل البيانات</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3 w-full md:w-auto flex-wrap">
+                    <input type="date" id="filter-from" class="input-field py-2 text-sm w-32" title="من تاريخ">
+                    <span class="text-grayText font-bold text-sm">إلى</span>
+                    <input type="date" id="filter-to" class="input-field py-2 text-sm w-32" title="إلى تاريخ">
+                    
+                    <button onclick="renderTable()" class="bg-gray-200 hover:bg-gray-300 text-dark font-bold py-2 px-4 rounded-xl transition text-sm cursor-pointer">
+                        <i class="fa-solid fa-search"></i> عرض
+                    </button>
+                    <button onclick="exportToExcel()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded-xl transition text-sm flex items-center gap-2 shadow-md cursor-pointer">
+                        <i class="fa-solid fa-file-excel"></i> تحميل إكسيل
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-card overflow-hidden flex-1 flex flex-col h-[600px]">
+                <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-white">
+                    <h3 class="font-black text-lg text-dark">سجل الحركات المحفوظة</h3>
+                    <span id="record-count" class="bg-primary text-white text-xs font-bold px-3 py-1 rounded-full">0 حركة</span>
+                </div>
+                
+                <div class="overflow-y-auto custom-scrollbar flex-1 p-0 relative">
+                    <table class="w-full text-right border-collapse whitespace-nowrap">
+                        <thead class="bg-[#F4F7FE] text-grayText sticky top-0 shadow-sm z-10">
+                            <tr>
+                                <th class="p-4 font-bold text-sm border-b">التاريخ</th>
+                                <th class="p-4 font-bold text-sm border-b">المشروع</th>
+                                <th class="p-4 font-bold text-sm border-b">التصنيف</th>
+                                <th class="p-4 font-bold text-sm border-b">المعدة</th>
+                                <th class="p-4 font-bold text-sm border-b">الكمية (س)</th>
+                                <th class="p-4 font-bold text-sm border-b">الإيراد</th>
+                                <th class="p-4 font-bold text-sm border-b">المصروف</th>
+                                <th class="p-4 font-bold text-sm border-b">الربح</th>
+                                <th class="p-4 font-bold text-sm text-center border-b">حذف</th>
+                            </tr>
+                        </thead>
+                        <tbody id="records-tbody" class="text-dark font-semibold divide-y divide-gray-100"></tbody>
+                        <tfoot class="bg-dark text-white sticky bottom-0 z-10">
+                            <tr id="records-tfoot"></tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // قواعد البيانات الافتراضية
+        const defaultProjects = [
+            "شركة الرواسخ (التحالف كونكريت بلس)", "شركة الرواسخ (كسارة الراغب)", 
+            "شركة الرواسخ (مقابر السخنة)", "شركة الرواسخ (شركة الغازي)", 
+            "شركة الرواسخ (الشركة الصينية)", "تسويات سفاجا", 
+            "شركة الرواسخ (فوسفات مصر) 3", "شركة موقع سفاجا", 
+            "شركة الرواسخ (فوسفات مصر) 2", "شركة الرواسخ (حافظ بدوي)", "شركة الرواسخ (فوسفات مصر) 4"
+        ];
+
+        const defaultEquipment = {
+            "سيارات": ["سيارة1", "سيارة2", "سيارة3", "سيارة4", "سيارة5", "سيارة6", "سيارة7", "سيارة8", "سيارة9", "سيارة10", "سيارة11", "سيارة12", "طنبر 1", "جامبو 2015", "دبابة 97", "سيارة مياه"],
+            "لوادر": ["لودر1", "لودر2", "لودر3", "لودر4", "لودر5", "لودر6", "لودر7", "لودر 8", "لودر 9", "لودر 10", "لودر 11 (G66)", "لودر 12", "لودر 66 م صفوت", "لودر 80 G ايجار"],
+            "حفارات": ["فولفو2", "فولفو3", "فولفو4", "فولفو5", "فولفو6", "دوسان300(1)", "فولفو7", "فولفو8", "حفار9", "حفار 10", "حفار 11", "حفار 12"],
+            "بلدوزرات": ["كاتر1", "كاتر2", "كوماتسو90", "كوماتسو475", "بلدوزر 7", "بلدوزر 10n", "بلدوزر كوماتسو 355", "كاتر3", "كاتر4"]
+        };
+
+        // استرجاع القوائم من الذاكرة
+        let projects = JSON.parse(localStorage.getItem('my_projects')) || defaultProjects;
+        let equipmentDB = JSON.parse(localStorage.getItem('my_equipment')) || defaultEquipment;
+        let records = JSON.parse(localStorage.getItem('equipment_records')) || [];
+
+        window.onload = function() {
+            renderProjectsDropdown();
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date').value = today;
+            
+            const dateObj = new Date();
+            const firstDay = new Date(dateObj.getFullYear(), dateObj.getMonth(), 2).toISOString().split('T')[0];
+            document.getElementById('filter-from').value = firstDay;
+            document.getElementById('filter-to').value = today;
+
+            renderTable();
+        };
+
+        // تحديث قائمة المشاريع (Datalist للبحث السريع)
+        function renderProjectsDropdown() {
+            const dataList = document.getElementById('project-options');
+            dataList.innerHTML = '';
+            projects.forEach(p => { 
+                const option = document.createElement('option');
+                option.value = p;
+                dataList.appendChild(option);
+            });
+        }
+
+        // تحديث قائمة المعدات (Datalist للبحث السريع)
+        function updateEquipmentList() {
+            const category = document.getElementById('category').value;
+            const dataList = document.getElementById('equipment-options');
+            const equipInput = document.getElementById('equipment');
+            
+            dataList.innerHTML = '';
+            equipInput.value = ''; // تصفير خانة المعدة عند تغيير التصنيف
+            
+            if(equipmentDB[category]) {
+                equipmentDB[category].forEach(eq => { 
+                    const option = document.createElement('option');
+                    option.value = eq;
+                    dataList.appendChild(option);
+                });
+            }
+        }
+
+        // ================= الإضافة اليدوية (اختيارية) =================
+        function addNewProject() {
+            let newProject = prompt("أدخل اسم المشروع أو العميل الجديد:");
+            if (newProject && newProject.trim() !== '') {
+                const cleanName = newProject.trim();
+                if(!projects.includes(cleanName)) {
+                    projects.push(cleanName);
+                    localStorage.setItem('my_projects', JSON.stringify(projects));
+                    renderProjectsDropdown();
+                }
+                document.getElementById('project').value = cleanName;
+            }
+        }
+
+        function addNewEquipment() {
+            const category = document.getElementById('category').value;
+            if(!category) {
+                alert("برجاء اختيار تصنيف المعدة أولاً (سيارات، لوادر...)");
+                return;
+            }
+            let newEquip = prompt(`أدخل اسم المعدة الجديدة ضمن تصنيف (${category}):`);
+            if (newEquip && newEquip.trim() !== '') {
+                const cleanName = newEquip.trim();
+                if(!equipmentDB[category]) equipmentDB[category] = [];
+                if(!equipmentDB[category].includes(cleanName)) {
+                    equipmentDB[category].push(cleanName);
+                    localStorage.setItem('my_equipment', JSON.stringify(equipmentDB));
+                    updateEquipmentList();
+                }
+                document.getElementById('equipment').value = cleanName;
+            }
+        }
+
+        // ================= حفظ حركة التشغيل (مع نظام الإضافة التلقائية) =================
+        document.getElementById('record-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const projectName = document.getElementById('project').value.trim();
+            const category = document.getElementById('category').value;
+            const equipmentName = document.getElementById('equipment').value.trim();
+
+            // 1. نظام ذكي لاكتشاف وحفظ المشاريع الجديدة تلقائياً
+            if(projectName && !projects.includes(projectName)) {
+                projects.push(projectName);
+                localStorage.setItem('my_projects', JSON.stringify(projects));
+                renderProjectsDropdown();
+            }
+
+            // 2. نظام ذكي لاكتشاف وحفظ المعدات الجديدة تلقائياً
+            if(category && equipmentName && (!equipmentDB[category] || !equipmentDB[category].includes(equipmentName))) {
+                if(!equipmentDB[category]) equipmentDB[category] = [];
+                equipmentDB[category].push(equipmentName);
+                localStorage.setItem('my_equipment', JSON.stringify(equipmentDB));
+                updateEquipmentList();
+            }
+
+            // حفظ الحركة
+            const newRecord = {
+                id: Date.now(),
+                date: document.getElementById('date').value,
+                project: projectName,
+                category: category,
+                equipment: equipmentName,
+                quantity: parseFloat(document.getElementById('quantity').value) || 0,
+                revenue: parseFloat(document.getElementById('revenue').value) || 0,
+                expense: parseFloat(document.getElementById('expense').value) || 0
+            };
+
+            records.push(newRecord);
+            localStorage.setItem('equipment_records', JSON.stringify(records));
+
+            // تصفير الأرقام وتجهيز الماوس للحركة اللي بعدها
+            document.getElementById('quantity').value = '';
+            document.getElementById('revenue').value = '';
+            document.getElementById('expense').value = '';
+            document.getElementById('quantity').focus();
+
+            Swal.fire({title: 'تم الحفظ!', text: 'تم تسجيل الحركة بنجاح.', icon: 'success', confirmButtonColor: '#4318FF', timer: 1000, showConfirmButton: false});
+            renderTable();
+        });
+
+        // ================= رسم الجدول =================
+        function renderTable() {
+            const fromDate = document.getElementById('filter-from').value;
+            const toDate = document.getElementById('filter-to').value;
+            const tbody = document.getElementById('records-tbody');
+            tbody.innerHTML = '';
+
+            let filteredRecords = records;
+            if(fromDate && toDate) filteredRecords = records.filter(r => r.date >= fromDate && r.date <= toDate);
+            
+            filteredRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+            document.getElementById('record-count').innerText = `${filteredRecords.length} حركة`;
+
+            let totalQty = 0, totalRev = 0, totalExp = 0, totalNet = 0;
+
+            filteredRecords.forEach(r => {
+                let net = r.revenue - r.expense;
+                totalQty += r.quantity; totalRev += r.revenue; totalExp += r.expense; totalNet += net;
+                let netColor = net >= 0 ? 'text-emerald-500' : 'text-red-500';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition border-b border-gray-100">
+                        <td class="p-4 font-bold text-sm">${r.date}</td>
+                        <td class="p-4 font-bold text-primary truncate max-w-[150px]" title="${r.project}">${r.project}</td>
+                        <td class="p-4 text-sm text-grayText">${r.category}</td>
+                        <td class="p-4 font-bold">${r.equipment}</td>
+                        <td class="p-4">${r.quantity.toLocaleString('en-US')}</td>
+                        <td class="p-4 text-blue-600 font-bold">${r.revenue.toLocaleString('en-US')}</td>
+                        <td class="p-4 text-red-500 font-bold">${r.expense.toLocaleString('en-US')}</td>
+                        <td class="p-4 font-black ${netColor}">${net.toLocaleString('en-US')}</td>
+                        <td class="p-4 text-center">
+                            <button onclick="deleteRecord(${r.id})" class="text-red-400 hover:text-red-600 transition cursor-pointer" title="حذف الحركة"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            let totalNetColor = totalNet >= 0 ? 'text-emerald-400' : 'text-red-400';
+            document.getElementById('records-tfoot').innerHTML = `
+                <td colspan="4" class="p-4 text-lg font-black text-left">إجمالي الفترة:</td>
+                <td class="p-4 font-black text-lg">${totalQty.toLocaleString('en-US')}</td>
+                <td class="p-4 font-black text-lg text-blue-300">${totalRev.toLocaleString('en-US')}</td>
+                <td class="p-4 font-black text-lg text-red-300">${totalExp.toLocaleString('en-US')}</td>
+                <td class="p-4 font-black text-lg ${totalNetColor}">${totalNet.toLocaleString('en-US')}</td>
+                <td></td>
+            `;
+        }
+
+        function deleteRecord(id) {
+            Swal.fire({
+                title: 'حذف الحركة؟',
+                text: "لن تتمكن من التراجع عن هذا الإجراء!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#A3AED0',
+                confirmButtonText: 'نعم، احذف',
+                cancelButtonText: 'إلغاء'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    records = records.filter(r => r.id !== id);
+                    localStorage.setItem('equipment_records', JSON.stringify(records));
+                    renderTable();
+                    Swal.fire({title: 'تم الحذف!', icon: 'success', timer: 1000, showConfirmButton: false});
+                }
+            });
+        }
+
+        // ================= تصدير لإكسيل =================
+        function exportToExcel() {
+            const fromDate = document.getElementById('filter-from').value;
+            const toDate = document.getElementById('filter-to').value;
+            
+            let filteredRecords = records;
+            if(fromDate && toDate) filteredRecords = records.filter(r => r.date >= fromDate && r.date <= toDate);
+            if(filteredRecords.length === 0) {
+                Swal.fire('تنبيه', 'لا يوجد بيانات لتصديرها.', 'info');
+                return;
+            }
+
+            const excelData = filteredRecords.map(r => ({
+                "التاريخ": r.date, "المشروع": r.project, "التصنيف": r.category, "اسم المعدة": r.equipment,
+                "الكمية (ساعات)": r.quantity, "الإيراد": r.revenue, "المصروف": r.expense, "صافي الربح": r.revenue - r.expense
+            }));
+
+            const totalQty = filteredRecords.reduce((sum, r) => sum + r.quantity, 0);
+            const totalRev = filteredRecords.reduce((sum, r) => sum + r.revenue, 0);
+            const totalExp = filteredRecords.reduce((sum, r) => sum + r.expense, 0);
+            
+            excelData.push({
+                "التاريخ": "الإجمالي", "المشروع": "", "التصنيف": "", "اسم المعدة": "",
+                "الكمية (ساعات)": totalQty, "الإيراد": totalRev, "المصروف": totalExp, "صافي الربح": totalRev - totalExp
+            });
+
+            const ws = XLSX.utils.json_to_sheet(excelData);
+            if(!ws['!views']) ws['!views'] = [];
+            ws['!views'].push({rightToLeft: true});
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "سجل التشغيل");
+            XLSX.writeFile(wb, `تشغيل_المعدات_${fromDate}_الى_${toDate}.xlsx`);
+        }
+    </script>
+</body>
+</html>
